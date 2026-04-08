@@ -4,9 +4,7 @@ import fitz  # PyMuPDF
 from pdf2image import convert_from_bytes
 import pytesseract
 from docx import Document
-
-# Define the Mac Downloads folder
-downloads_path = os.path.expanduser('~/Downloads')
+from io import BytesIO
 
 st.title("PDF Converter App")
 
@@ -21,7 +19,7 @@ if uploaded_file is not None:
     if st.button("Convert and Save"):
         with st.spinner("Converting..."):
             extracted_text = ""
-            
+
             # 1. Extract Text
             if conversion_type == "Scanned PDF to OCR (Image)":
                 images = convert_from_bytes(uploaded_file.read())
@@ -31,27 +29,34 @@ if uploaded_file is not None:
                 doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                 for page in doc:
                     extracted_text += page.get_text()
-            
-            # 2. Save the File
+
+            # 2. Prepare download
             base_name = os.path.splitext(uploaded_file.name)[0]
-            output_file_path = os.path.join(downloads_path, f"{base_name}{output_format}")
-            
+
             if output_format == ".txt":
-                with open(output_file_path, "w", encoding="utf-8") as f:
-                    f.write(extracted_text)
-                    
+                data = extracted_text.encode("utf-8")
+                mime = "text/plain"
+
             elif output_format == ".rtf":
-                # Basic RTF formatting
                 rtf_content = "{\\rtf1\\ansi\n" + extracted_text.replace("\n", "\\par\n") + "\n}"
-                with open(output_file_path, "w", encoding="utf-8") as f:
-                    f.write(rtf_content)
-                    
+                data = rtf_content.encode("utf-8")
+                mime = "application/rtf"
+
             elif output_format == ".docx":
+                buffer = BytesIO()
                 word_doc = Document()
                 word_doc.add_paragraph(extracted_text)
-                word_doc.save(output_file_path)
-                
-            st.success(f"Success! File saved directly to: {output_file_path}")
+                word_doc.save(buffer)
+                data = buffer.getvalue()
+                mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+            st.success("Conversion complete! Click below to download.")
+            st.download_button(
+                label="Download File",
+                data=data,
+                file_name=f"{base_name}{output_format}",
+                mime=mime
+            )
 
 st.markdown("---")
 st.markdown("<center>App brought to you by <a href='https://www.karloz.art'>www.karloz.art</a></center>", unsafe_allow_html=True)
